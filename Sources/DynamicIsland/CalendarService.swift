@@ -10,6 +10,7 @@ final class CalendarService: ObservableObject {
     @Published private(set) var access: Access
     /// All of today's events; the view filters to upcoming ones as time passes.
     @Published private(set) var todaysMeetings: [Meeting] = []
+    @Published private(set) var isSyncing = false
 
     private let store = EKEventStore()
     private var observer: NSObjectProtocol?
@@ -47,6 +48,17 @@ final class CalendarService: ObservableObject {
         let end = calendar.date(byAdding: .day, value: 1, to: start)!
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
         todaysMeetings = store.events(matching: predicate).map(Self.meeting(from:))
+    }
+
+    /// Refresh button: ask macOS to sync calendar accounts (iCloud, Google, Exchange…) and reload.
+    /// Anything that arrives later triggers `.EKEventStoreChanged`, which refreshes again.
+    func syncNow() {
+        guard access == .granted else { return }
+        isSyncing = true
+        store.refreshSourcesIfNecessary()
+        store.reset() // drop cached events so the fetch reads fresh data
+        refresh()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.isSyncing = false }
     }
 
     private static func meeting(from event: EKEvent) -> Meeting {

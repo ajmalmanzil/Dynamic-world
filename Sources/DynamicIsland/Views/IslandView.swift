@@ -33,6 +33,7 @@ struct IslandView: View {
     @ObservedObject var settings: SettingsStore
     @ObservedObject var todos: TodoStore
     @ObservedObject var calendar: CalendarService
+    @State private var refreshSpin: Double = 0
 
     var body: some View {
         let size = model.isExpanded ? model.expandedSize : model.collapsedSize
@@ -70,7 +71,7 @@ struct IslandView: View {
         }
     }
 
-    /// Lives in the "ears" either side of the camera: tabs on the left, date and settings on the right.
+    /// Lives in the "ears" either side of the camera: tabs on the left, refresh (Meetings only) and settings on the right.
     private var topBar: some View {
         HStack(spacing: 0) {
             HStack(spacing: 4) {
@@ -88,11 +89,25 @@ struct IslandView: View {
 
             Spacer(minLength: model.notchSize.width)
 
-            Button(action: model.openSettings) {
-                iconLabel(.gear, selected: false)
+            HStack(spacing: 2) {
+                if model.tab == .meetings && calendar.access == .granted {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.8)) { refreshSpin += 360 }
+                        calendar.syncNow()
+                    } label: {
+                        iconLabel(.refresh, selected: calendar.isSyncing)
+                            .rotationEffect(.degrees(refreshSpin))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh from Apple Calendar")
+                    .transition(.opacity)
+                }
+                Button(action: model.openSettings) {
+                    iconLabel(.gear, selected: false)
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
             }
-            .buttonStyle(.plain)
-            .help("Settings")
             .padding(.trailing, 10)
         }
     }
