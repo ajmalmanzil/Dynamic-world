@@ -8,6 +8,25 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
+                ForEach(IslandTab.allCases) { tab in
+                    let isOn = settings.isEnabled(tab)
+                    Toggle(isOn: Binding(get: { isOn }, set: { settings.setEnabled(tab, $0) })) {
+                        Label {
+                            Text(tab.title)
+                        } icon: {
+                            StreamlineIconView(icon: tab.icon, size: 14)
+                        }
+                    }
+                    // Keep at least one feature on.
+                    .disabled(isOn && settings.enabledTabs.count == 1)
+                }
+            } header: {
+                Text("Features")
+            } footer: {
+                Text("Turned-off features disappear from the island.")
+            }
+
+            Section {
                 ForEach(settings.cities) { city in
                     HStack {
                         VStack(alignment: .leading) {
@@ -62,6 +81,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 540)
+        .frame(width: 460, height: 640)
     }
 }

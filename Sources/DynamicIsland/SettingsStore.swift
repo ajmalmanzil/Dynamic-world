@@ -23,12 +23,16 @@ final class SettingsStore: ObservableObject {
 
     @Published var cities: [City] { didSet { saveCities() } }
     @Published var dotColor: DotColor { didSet { defaults.set(dotColor.rawValue, forKey: Keys.dotColor) } }
+    /// Features shown in the island. Turning one off hides its tab and stops its background work.
+    @Published private(set) var enabledTabs: Set<IslandTab> {
+        didSet { defaults.set(enabledTabs.map(\.rawValue), forKey: Keys.enabledTabs) }
+    }
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     @Published private(set) var launchAtLoginError: String?
 
     private let defaults: UserDefaults
     private enum Keys {
-        static let cities = "cities", dotColor = "dotColor"
+        static let cities = "cities", dotColor = "dotColor", enabledTabs = "enabledTabs"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -40,6 +44,22 @@ final class SettingsStore: ObservableObject {
             cities = [.newDelhi]
         }
         dotColor = DotColor(rawValue: defaults.string(forKey: Keys.dotColor) ?? "") ?? .white
+        let savedTabs = (defaults.stringArray(forKey: Keys.enabledTabs) ?? []).compactMap(IslandTab.init(rawValue:))
+        enabledTabs = savedTabs.isEmpty ? Set(IslandTab.allCases) : Set(savedTabs)
+    }
+
+    /// Enabled features in tab-bar order.
+    var visibleTabs: [IslandTab] { IslandTab.allCases.filter(enabledTabs.contains) }
+
+    func isEnabled(_ tab: IslandTab) -> Bool { enabledTabs.contains(tab) }
+
+    /// The last enabled feature can't be switched off, so the island always has something to show.
+    func setEnabled(_ tab: IslandTab, _ enabled: Bool) {
+        if enabled {
+            enabledTabs.insert(tab)
+        } else if enabledTabs.count > 1 {
+            enabledTabs.remove(tab)
+        }
     }
 
     func addCity(_ city: City) {

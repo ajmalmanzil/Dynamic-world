@@ -22,6 +22,15 @@ final class ScreenshotStore: ObservableObject {
         watch()
     }
 
+    /// Called when the feature is turned off: stop watching the folder and forget the thumbnails.
+    func stop() {
+        watcher?.cancel()
+        watcher = nil
+        pendingRescan?.cancel()
+        screenshots = []
+        thumbnails = [:]
+    }
+
     func rescan() {
         let newFolder = ScreenshotLibrary.screenshotFolder()
         if newFolder != folder {

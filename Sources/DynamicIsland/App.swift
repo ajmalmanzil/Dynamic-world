@@ -46,9 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in DispatchQueue.main.async { self?.handleMouse() } }
             .store(in: &cancellables)
         if let i = CommandLine.arguments.firstIndex(of: "--tab"), i + 1 < CommandLine.arguments.count,
-           let tab = IslandTab(rawValue: CommandLine.arguments[i + 1]) {
+           let tab = IslandTab(rawValue: CommandLine.arguments[i + 1]), settings.isEnabled(tab) {
             model.tab = tab
         }
+        settings.$enabledTabs
+            .sink { [weak self] enabled in self?.featuresChanged(enabled) }
+            .store(in: &cancellables)
 
         panel = NotchPanel(rootView: IslandView(model: model, settings: settings, todos: todos,
                                                 calendar: calendar, screenshots: screenshots))
@@ -74,6 +77,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if pinExpanded { setExpanded(true) }
+    }
+
+    /// Keep the selected tab valid and shut down work for features that were turned off.
+    private func featuresChanged(_ enabled: Set<IslandTab>) {
+        if !enabled.contains(model.tab), let first = IslandTab.allCases.first(where: enabled.contains) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { model.tab = first }
+        }
+        if !enabled.contains(.screenshots) { screenshots.stop() }
     }
 
     // MARK: Layout
@@ -133,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard model.isExpanded != expanded else { return }
 
         if expanded {
-            calendar.refresh()
+            if settings.isEnabled(.meetings) { calendar.refresh() }
             if model.tab == .screenshots { screenshots.rescan() }
         }
         panel.ignoresMouseEvents = !expanded
@@ -169,7 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showSettings() {
         if !pinExpanded { setExpanded(false) }
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 540),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 640),
                                   styleMask: [.titled, .closable],
                                   backing: .buffered, defer: false)
             window.title = "Dynamic Island Settings"

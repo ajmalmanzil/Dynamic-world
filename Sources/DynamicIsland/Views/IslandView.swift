@@ -77,7 +77,7 @@ struct IslandView: View {
     private var topBar: some View {
         HStack(spacing: 0) {
             HStack(spacing: 2) {
-                ForEach(IslandTab.allCases) { tab in
+                ForEach(settings.visibleTabs) { tab in
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { model.tab = tab }
                     } label: {
