@@ -2,7 +2,7 @@ import IslandCore
 import SwiftUI
 
 enum IslandTab: String, CaseIterable, Identifiable {
-    case clock, todo, meetings
+    case clock, todo, meetings, screenshots
     var id: String { rawValue }
 
     var title: String {
@@ -10,14 +10,16 @@ enum IslandTab: String, CaseIterable, Identifiable {
         case .clock: return "World Clock"
         case .todo: return "Todo"
         case .meetings: return "Meetings"
+        case .screenshots: return "Screenshots"
         }
     }
 
-    var icon: DotMatrixIcon {
+    var icon: StreamlineIcon {
         switch self {
         case .clock: return .clock
-        case .todo: return .checklist
+        case .todo: return .todo
         case .meetings: return .calendar
+        case .screenshots: return .screenshots
         }
     }
 }
@@ -30,6 +32,8 @@ final class IslandModel: ObservableObject {
     @Published var todoDraft = ""
     /// Cities shown on the clock tab; drives its height.
     @Published var clockCityCount = 1
+    /// True while a screenshot is being dragged out; the island stays open until the drop.
+    @Published var isDraggingOut = false
 
     /// Width of the concave "flare" where the island meets the top of the screen.
     static let topRadius: CGFloat = 8
@@ -46,6 +50,8 @@ final class IslandModel: ObservableObject {
             let content = ClockTab.contentHeight(cityCount: clockCityCount)
             return CGSize(width: Self.expandedWidth, height: notchSize.height + 8 + content + 14)
         case .todo, .meetings: return Self.maxExpandedSize
+        case .screenshots:
+            return CGSize(width: Self.expandedWidth, height: notchSize.height + 8 + ScreenshotsTab.contentHeight + 14)
         }
     }
 

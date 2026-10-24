@@ -33,6 +33,7 @@ struct IslandView: View {
     @ObservedObject var settings: SettingsStore
     @ObservedObject var todos: TodoStore
     @ObservedObject var calendar: CalendarService
+    @ObservedObject var screenshots: ScreenshotStore
     @State private var refreshSpin: Double = 0
 
     var body: some View {
@@ -62,6 +63,7 @@ struct IslandView: View {
                 case .clock: ClockTab(settings: settings)
                 case .todo: TodoTab(model: model, todos: todos)
                 case .meetings: MeetingsTab(calendar: calendar)
+                case .screenshots: ScreenshotsTab(model: model, store: screenshots)
                 }
             }
             .padding(.horizontal, 14)
@@ -74,7 +76,7 @@ struct IslandView: View {
     /// Lives in the "ears" either side of the camera: tabs on the left, refresh (Meetings only) and settings on the right.
     private var topBar: some View {
         HStack(spacing: 0) {
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 ForEach(IslandTab.allCases) { tab in
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { model.tab = tab }
@@ -103,7 +105,7 @@ struct IslandView: View {
                     .transition(.opacity)
                 }
                 Button(action: model.openSettings) {
-                    iconLabel(.gear, selected: false)
+                    iconLabel(.settings, selected: false)
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
@@ -112,12 +114,15 @@ struct IslandView: View {
         }
     }
 
-    /// Dot-matrix icon; the selected tab is lit and glows, the rest are dimmed.
-    private func iconLabel(_ icon: DotMatrixIcon, selected: Bool) -> some View {
+    /// Thin Streamline icon; the selected tab is full brightness with a hairline underneath.
+    private func iconLabel(_ icon: StreamlineIcon, selected: Bool) -> some View {
         let color = settings.dotColor.color
-        return DotGrid(dots: icon.dots, color: selected ? color : color.opacity(0.4), dot: 1.6, spacing: 0.6)
-            .shadow(color: selected ? color.opacity(0.5) : .clear, radius: 3)
-            .frame(width: 30, height: 24)
+        return StreamlineIconView(icon: icon, size: 15)
+            .foregroundStyle(selected ? color : color.opacity(0.4))
+            .frame(width: 28, height: 24)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(color).frame(width: 12, height: 1).opacity(selected ? 1 : 0)
+            }
             .contentShape(Rectangle())
     }
 }

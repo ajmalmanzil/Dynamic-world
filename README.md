@@ -43,3 +43,7 @@ The unit tests cover `IslandCore`: time zone offsets (including half-hour and DS
 - `Sources/IslandCore`: pure logic, unit tested
 - `Sources/DynamicIsland`: AppKit panel, hover handling, SwiftUI views, EventKit
 - `Tests/IslandCoreTests`
+
+## Credits
+
+Tab and toolbar icons are from the [Streamline](https://www.streamlinehq.com) "Sharp" free set (watch-square-time, bullet-list, calendar-mark, arrow-reload-horizontal-2, cog), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Stroke width was reduced from 1.5 to 1.25.

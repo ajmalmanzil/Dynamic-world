@@ -65,13 +65,3 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertEqual(rect.height, 190)
     }
 }
-
-final class DotMatrixIconTests: XCTestCase {
-    func testIconsAreSquareAndDistinct() {
-        for icon in DotMatrixIcon.allCases {
-            XCTAssertEqual(icon.dots.count, DotMatrixIcon.size, "\(icon)")
-            XCTAssertTrue(icon.dots.allSatisfy { $0.count == DotMatrixIcon.size }, "\(icon)")
-        }
-        XCTAssertEqual(Set(DotMatrixIcon.allCases.map { $0.dots.description }).count, DotMatrixIcon.allCases.count)
-    }
-}

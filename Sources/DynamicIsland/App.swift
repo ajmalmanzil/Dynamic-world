@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = SettingsStore()
     private let todos = TodoStore(fileURL: TodoStore.defaultFileURL)
     private let calendar = CalendarService()
+    private let screenshots = ScreenshotStore()
     private let model = IslandModel()
 
     private var panel: NotchPanel!
@@ -38,12 +39,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .map { min($0.count, SettingsStore.maxVisibleCities) }
             .sink { [weak self] count in self?.model.clockCityCount = count }
             .store(in: &cancellables)
+        // After a drop, close the island if the mouse ended up outside it.
+        model.$isDraggingOut
+            .removeDuplicates()
+            .filter { !$0 }
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.handleMouse() } }
+            .store(in: &cancellables)
         if let i = CommandLine.arguments.firstIndex(of: "--tab"), i + 1 < CommandLine.arguments.count,
            let tab = IslandTab(rawValue: CommandLine.arguments[i + 1]) {
             model.tab = tab
         }
 
-        panel = NotchPanel(rootView: IslandView(model: model, settings: settings, todos: todos, calendar: calendar))
+        panel = NotchPanel(rootView: IslandView(model: model, settings: settings, todos: todos,
+                                                calendar: calendar, screenshots: screenshots))
         layoutPanel()
         panel.orderFrontRegardless()
         setUpStatusItem()
@@ -92,6 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handleMouse() {
         guard !pinExpanded else { return }
+        if model.isDraggingOut {
+            collapseWork?.cancel()
+            collapseWork = nil
+            return
+        }
         let point = NSEvent.mouseLocation
 
         if model.isExpanded {
@@ -119,7 +132,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         collapseWork = nil
         guard model.isExpanded != expanded else { return }
 
-        if expanded { calendar.refresh() }
+        if expanded {
+            calendar.refresh()
+            if model.tab == .screenshots { screenshots.rescan() }
+        }
         panel.ignoresMouseEvents = !expanded
 
         let animation: Animation = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
