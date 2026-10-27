@@ -47,7 +47,9 @@ final class ScreenshotStore: ObservableObject {
             accessDenied = (error as NSError).code == NSFileReadNoPermissionError
         }
 
-        let latest = ScreenshotLibrary.latest(in: folder, limit: Self.limit)
+        // Only today's screenshots: each day starts with an empty tray.
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let latest = ScreenshotLibrary.latest(in: folder, limit: Self.limit, since: startOfToday)
         guard latest != screenshots else { return }
         screenshots = latest
         thumbnails = thumbnails.filter { url, _ in latest.contains { $0.url == url } }

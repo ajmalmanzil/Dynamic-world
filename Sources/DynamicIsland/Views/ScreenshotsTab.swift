@@ -16,7 +16,7 @@ struct ScreenshotsTab: View {
                 message("Allow Dynamic Island to read your screenshot folder under Privacy & Security › Files and Folders.",
                         button: "Open Privacy Settings", action: store.openPrivacySettings)
             } else if store.screenshots.isEmpty {
-                message("No screenshots yet. Press ⇧⌘4 to take one.")
+                message("No screenshots today. Press ⇧⌘4 to take one.")
             } else {
                 TimelineView(.everyMinute) { context in
                     HStack(spacing: 10) {

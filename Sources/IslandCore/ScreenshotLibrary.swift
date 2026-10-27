@@ -32,8 +32,8 @@ public enum ScreenshotLibrary {
 
     static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "gif", "pdf"]
 
-    /// Newest screenshots first.
-    public static func latest(in folder: URL, limit: Int = 5,
+    /// Newest screenshots first, optionally only those created at or after `since`.
+    public static func latest(in folder: URL, limit: Int = 5, since: Date? = nil,
                               isScreenshot: (URL) -> Bool = hasScreenCaptureTag) -> [Screenshot] {
         let keys: [URLResourceKey] = [.creationDateKey, .isRegularFileKey]
         let urls = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys,
@@ -44,6 +44,7 @@ public enum ScreenshotLibrary {
                 guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { return nil }
                 return Screenshot(url: url, createdAt: values.creationDate ?? .distantPast)
             }
+            .filter { shot in since.map { shot.createdAt >= $0 } ?? true }
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(limit)
             .map { $0 }

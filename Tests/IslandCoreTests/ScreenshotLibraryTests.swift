@@ -35,6 +35,18 @@ final class ScreenshotLibraryTests: XCTestCase {
         XCTAssertEqual(shots.map(\.url.lastPathComponent), ["Shot 0.png", "Shot 1.png", "Shot 2.png", "Shot 3.png", "Shot 4.png"])
     }
 
+    func testSinceHidesOlderScreenshots() throws {
+        try makeFile("Today 1.png", minutesAgo: 5)
+        try makeFile("Today 2.png", minutesAgo: 30)
+        try makeFile("Yesterday.png", minutesAgo: 60 * 26)
+
+        let since = Date().addingTimeInterval(-60 * 60)
+        XCTAssertEqual(ScreenshotLibrary.latest(in: folder, since: since).map(\.url.lastPathComponent),
+                       ["Today 1.png", "Today 2.png"])
+        XCTAssertTrue(ScreenshotLibrary.latest(in: folder, since: Date().addingTimeInterval(60)).isEmpty)
+        XCTAssertEqual(ScreenshotLibrary.latest(in: folder).count, 3)
+    }
+
     func testCustomPredicateAndMissingFolder() throws {
         try makeFile("a.png", minutesAgo: 1, tagged: false)
         XCTAssertEqual(ScreenshotLibrary.latest(in: folder, isScreenshot: { _ in true }).count, 1)
