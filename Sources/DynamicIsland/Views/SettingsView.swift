@@ -73,6 +73,7 @@ struct SettingsView: View {
             }
 
             Section("General") {
+                Toggle("Show on external displays", isOn: $settings.showOnExternalDisplays)
                 Toggle("Launch at login", isOn: Binding(get: { settings.launchAtLogin },
                                                         set: { settings.setLaunchAtLogin($0) }))
                 if let error = settings.launchAtLoginError {

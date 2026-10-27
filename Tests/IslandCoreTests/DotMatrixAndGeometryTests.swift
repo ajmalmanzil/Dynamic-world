@@ -57,6 +57,16 @@ final class NotchGeometryTests: XCTestCase {
         XCTAssertEqual(rect.maxY, screen.maxY)
     }
 
+    func testExternalDisplayPillFollowsMenuBarHeight() {
+        // Ultrawide to the right of the laptop, with a 25pt menu bar.
+        let screen = CGRect(x: 1512, y: -200, width: 3440, height: 1440)
+        let rect = NotchGeometry.notchRect(screenFrame: screen, leftAreaWidth: nil, rightAreaWidth: nil,
+                                           topInset: 0, menuBarHeight: 25)
+        XCTAssertEqual(rect.size, CGSize(width: NotchGeometry.fallbackNotchSize.width, height: 25))
+        XCTAssertEqual(rect.midX, screen.midX)
+        XCTAssertEqual(rect.maxY, screen.maxY)
+    }
+
     func testTopCenteredRect() {
         let notch = CGRect(x: 663, y: 950, width: 185, height: 32)
         let rect = NotchGeometry.topCenteredRect(size: CGSize(width: 480, height: 190), under: notch)

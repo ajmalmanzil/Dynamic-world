@@ -35,7 +35,7 @@ The unit tests cover `IslandCore`: time zone offsets (including half-hour and DS
 - [ ] Clock ticks every second; New Delhi shows the right offset and "Tomorrow" after 20:30 local
 - [ ] Add, complete and delete todos; they survive a relaunch
 - [ ] First Meetings visit asks for Calendar access; Join opens the call
-- [ ] Works over full-screen apps and on every Space; external monitor plugged in keeps the island on the built-in screen
+- [ ] Works over full-screen apps and on every Space; plugging in or unplugging a monitor adds or removes its island
 - [ ] Sleep/wake and changing the system time zone update the clocks
 
 ## Layout

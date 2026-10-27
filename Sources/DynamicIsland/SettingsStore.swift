@@ -27,12 +27,17 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var enabledTabs: Set<IslandTab> {
         didSet { defaults.set(enabledTabs.map(\.rawValue), forKey: Keys.enabledTabs) }
     }
+    /// Show an island on every connected display, not just the built-in one.
+    @Published var showOnExternalDisplays: Bool {
+        didSet { defaults.set(showOnExternalDisplays, forKey: Keys.showOnExternalDisplays) }
+    }
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     @Published private(set) var launchAtLoginError: String?
 
     private let defaults: UserDefaults
     private enum Keys {
         static let cities = "cities", dotColor = "dotColor", enabledTabs = "enabledTabs"
+        static let showOnExternalDisplays = "showOnExternalDisplays"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -46,6 +51,7 @@ final class SettingsStore: ObservableObject {
         dotColor = DotColor(rawValue: defaults.string(forKey: Keys.dotColor) ?? "") ?? .white
         let savedTabs = (defaults.stringArray(forKey: Keys.enabledTabs) ?? []).compactMap(IslandTab.init(rawValue:))
         enabledTabs = savedTabs.isEmpty ? Set(IslandTab.allCases) : Set(savedTabs)
+        showOnExternalDisplays = defaults.object(forKey: Keys.showOnExternalDisplays) as? Bool ?? true
     }
 
     /// Enabled features in tab-bar order.

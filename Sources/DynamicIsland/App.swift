@@ -20,47 +20,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let todos = TodoStore(fileURL: TodoStore.defaultFileURL)
     private let calendar = CalendarService()
     private let screenshots = ScreenshotStore()
-    private let model = IslandModel()
 
-    private var panel: NotchPanel!
+    /// One island per screen, keyed by display ID.
+    private var islands: [CGDirectDisplayID: IslandController] = [:]
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
     private var monitors: [Any] = []
-    private var collapseWork: DispatchWorkItem?
-    private var notchRect: CGRect = .zero
     private var cancellables: Set<AnyCancellable> = []
 
     /// `--pin-expanded` keeps the island open (handy for screenshots and UI work).
     private let pinExpanded = CommandLine.arguments.contains("--pin-expanded")
+    /// `--tab <name>` opens islands on that tab.
+    private let initialTab: IslandTab? = {
+        guard let i = CommandLine.arguments.firstIndex(of: "--tab"), i + 1 < CommandLine.arguments.count else { return nil }
+        return IslandTab(rawValue: CommandLine.arguments[i + 1])
+    }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        model.openSettings = { [weak self] in self?.showSettings() }
-        settings.$cities
-            .map { min($0.count, SettingsStore.maxVisibleCities) }
-            .sink { [weak self] count in self?.model.clockCityCount = count }
-            .store(in: &cancellables)
-        // After a drop, close the island if the mouse ended up outside it.
-        model.$isDraggingOut
-            .removeDuplicates()
-            .filter { !$0 }
-            .sink { [weak self] _ in DispatchQueue.main.async { self?.handleMouse() } }
-            .store(in: &cancellables)
-        if let i = CommandLine.arguments.firstIndex(of: "--tab"), i + 1 < CommandLine.arguments.count,
-           let tab = IslandTab(rawValue: CommandLine.arguments[i + 1]), settings.isEnabled(tab) {
-            model.tab = tab
-        }
         settings.$enabledTabs
-            .sink { [weak self] enabled in self?.featuresChanged(enabled) }
+            .sink { [weak self] enabled in
+                if !enabled.contains(.screenshots) { self?.screenshots.stop() }
+            }
+            .store(in: &cancellables)
+        settings.$showOnExternalDisplays
+            .dropFirst()
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.syncIslands() } }
             .store(in: &cancellables)
 
-        panel = NotchPanel(rootView: IslandView(model: model, settings: settings, todos: todos,
-                                                calendar: calendar, screenshots: screenshots))
-        layoutPanel()
-        panel.orderFrontRegardless()
+        syncIslands()
         setUpStatusItem()
 
         // Mouse-moved monitors (no Accessibility permission needed) drive hover open/close.
-        let handler: (NSEvent) -> Void = { [weak self] _ in self?.handleMouse() }
+        let handler: (NSEvent) -> Void = { [weak self] _ in self?.islands.values.forEach { $0.handleMouse() } }
         if let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: handler) {
             monitors.append(global)
         }
@@ -71,95 +62,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             monitors.append(local)
         }
 
+        // Monitors plugged in or unplugged, resolution or arrangement changed.
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.layoutPanel() }
+            MainActor.assumeIsolated { self?.syncIslands() }
         }
-
-        if pinExpanded { setExpanded(true) }
     }
 
-    /// Keep the selected tab valid and shut down work for features that were turned off.
-    private func featuresChanged(_ enabled: Set<IslandTab>) {
-        if !enabled.contains(model.tab), let first = IslandTab.allCases.first(where: enabled.contains) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { model.tab = first }
+    // MARK: Screens
+
+    private static func displayID(of screen: NSScreen) -> CGDirectDisplayID? {
+        screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+    }
+
+    /// Every screen when external displays are on; otherwise just the notched one (or the main screen).
+    private var targetScreens: [NSScreen] {
+        if settings.showOnExternalDisplays { return NSScreen.screens }
+        let notched = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
+        return notched.map { [$0] } ?? []
+    }
+
+    /// Add islands for new screens, move existing ones, and remove islands for screens that are gone.
+    private func syncIslands() {
+        var wanted: [CGDirectDisplayID: NSScreen] = [:]
+        for screen in targetScreens {
+            if let id = Self.displayID(of: screen) { wanted[id] = screen }
         }
-        if !enabled.contains(.screenshots) { screenshots.stop() }
-    }
-
-    // MARK: Layout
-
-    /// The built-in display is the one with a notch (non-zero top safe area).
-    private var targetScreen: NSScreen? {
-        NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
-    }
-
-    private func layoutPanel() {
-        guard let screen = targetScreen else { return }
-        notchRect = NotchGeometry.notchRect(screenFrame: screen.frame,
-                                            leftAreaWidth: screen.auxiliaryTopLeftArea?.width,
-                                            rightAreaWidth: screen.auxiliaryTopRightArea?.width,
-                                            topInset: screen.safeAreaInsets.top)
-        model.notchSize = notchRect.size
-        // Fixed-size transparent panel; SwiftUI animates the black shape inside it.
-        let max = IslandModel.maxExpandedSize
-        let panelSize = CGSize(width: max.width + 40, height: max.height + 20)
-        panel.setFrame(NotchGeometry.topCenteredRect(size: panelSize, under: notchRect), display: true)
-    }
-
-    // MARK: Hover
-
-    private func handleMouse() {
-        guard !pinExpanded else { return }
-        if model.isDraggingOut {
-            collapseWork?.cancel()
-            collapseWork = nil
-            return
+        for (id, island) in islands where wanted[id] == nil {
+            island.close()
+            islands[id] = nil
         }
-        let point = NSEvent.mouseLocation
-
-        if model.isExpanded {
-            let expanded = NotchGeometry.topCenteredRect(size: model.expandedSize, under: notchRect)
-                .insetBy(dx: -12, dy: -12)
-            if expanded.contains(point) {
-                collapseWork?.cancel()
-                collapseWork = nil
-            } else if collapseWork == nil {
-                let work = DispatchWorkItem { [weak self] in self?.setExpanded(false) }
-                collapseWork = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
-            }
-        } else {
-            // Hot zone: the notch itself, a little wider, up to the very top pixel.
-            let hot = notchRect.insetBy(dx: -10, dy: 0)
-            if point.x >= hot.minX, point.x <= hot.maxX, point.y >= hot.minY {
-                setExpanded(true)
+        for (id, screen) in wanted {
+            if let island = islands[id] {
+                island.layout(on: screen)
+            } else {
+                islands[id] = IslandController(screen: screen, services: services, pinExpanded: pinExpanded,
+                                               initialTab: initialTab,
+                                               openSettings: { [weak self] in self?.showSettings() })
             }
         }
     }
 
-    private func setExpanded(_ expanded: Bool) {
-        collapseWork?.cancel()
-        collapseWork = nil
-        guard model.isExpanded != expanded else { return }
-
-        if expanded {
-            if settings.isEnabled(.meetings) { calendar.refresh() }
-            if model.tab == .screenshots { screenshots.rescan() }
-        }
-        panel.ignoresMouseEvents = !expanded
-
-        let animation: Animation = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-            ? .easeOut(duration: 0.15)
-            : .spring(response: 0.38, dampingFraction: 0.8)
-        withAnimation(animation) { model.isExpanded = expanded }
-
-        // If the Todo field had keyboard focus, hand it back to whatever app was in front.
-        if !expanded, panel.isKeyWindow {
-            panel.makeFirstResponder(nil)
-            panel.orderOut(nil)
-            panel.orderFrontRegardless()
-        }
+    private var services: IslandServices {
+        IslandServices(settings: settings, todos: todos, calendar: calendar, screenshots: screenshots)
     }
 
     // MARK: Menu bar & Settings
@@ -178,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openSettingsFromMenu() { showSettings() }
 
     private func showSettings() {
-        if !pinExpanded { setExpanded(false) }
+        if !pinExpanded { islands.values.forEach { $0.setExpanded(false) } }
         if settingsWindow == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 640),
                                   styleMask: [.titled, .closable],
